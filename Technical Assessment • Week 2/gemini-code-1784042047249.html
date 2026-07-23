@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>High-Performance Unit Converter</title>
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --accent-primary: #6366f1;
+            --accent-glow: rgba(99, 102, 241, 0.15);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: rgba(255, 255, 255, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        body {
+            background: var(--bg-gradient);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .converter-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border-color);
+            border-radius: 24px;
+            padding: 32px;
+            width: 100%;
+            max-width: 480px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3), 0 0 50px var(--accent-glow);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 28px;
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+            background: linear-gradient(to right, #a5b4fc, #6366f1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .mode-badge {
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            color: #a5b4fc;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .input-wrapper {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .main-input {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 18px 54px 18px 20px;
+            font-size: 1.25rem;
+            color: var(--text-main);
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .main-input:focus {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 4px var(--accent-glow);
+        }
+
+        .swap-btn {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .swap-btn:hover {
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .swap-btn:active {
+            transform: translateY(-50%) scale(0.95);
+        }
+
+        .output-container {
+            background: rgba(15, 23, 42, 0.4);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.02);
+        }
+
+        .output-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            letter-spacing: 0.05em;
+            margin-bottom: 6px;
+        }
+
+        .output-value {
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: var(--text-main);
+            word-break: break-all;
+            line-height: 1.2;
+        }
+
+        .visual-context {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 12px 4px 0 4px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="converter-card">
+        <div class="header">
+            <h1>Converter</h1>
+            <span class="mode-badge" id="modeBadge">KM → MI</span>
+        </div>
+
+        <div class="input-wrapper">
+            <input type="text" id="mainInput" class="main-input" placeholder="Enter Kilometers (or type '10mi')" autofocus autocomplete="off">
+            <button class="swap-btn" id="swapBtn" title="Reverse Direction">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4M7 4L3 8M7 4L11 8M17 8v12M17 20l-4-4M17 20l4-4"/></svg>
+            </button>
+        </div>
+
+        <div class="output-container">
+            <div class="output-label" id="outputLabel">Result (Miles)</div>
+            <div class="output-value" id="outputValue">0</div>
+        </div>
+
+        <div class="visual-context">
+            <span>💡</span>
+            <span id="contextText">Enter a value to see calculations with contextual scaling references instantly.</span>
+        </div>
+    </div>
+
+    <script>
+        const mainInput = document.getElementById('mainInput');
+        const swapBtn = document.getElementById('swapBtn');
+        const modeBadge = document.getElementById('modeBadge');
+        const outputLabel = document.getElementById('outputLabel');
+        const outputValue = document.getElementById('outputValue');
+        const contextText = document.getElementById('contextText');
+
+        // State Core Engine
+        let isKmToMi = true; 
+
+        // Mathematical Scaling Constants
+        const KM_TO_MI_FACTOR = 0.6213711922;
+        const MI_TO_KM_FACTOR = 1.609344;
+
+        function updateUIStrings() {
+            if (isKmToMi) {
+                modeBadge.textContent = "KM → MI";
+                outputLabel.textContent = "Result (Miles)";
+                mainInput.placeholder = "Enter Kilometers (or type '10mi')";
+            } else {
+                modeBadge.textContent = "MI → KM";
+                outputLabel.textContent = "Result (Kilometers)";
+                mainInput.placeholder = "Enter Miles (or type '10km')";
+            }
+        }
+
+        function generateContext(kilometers) {
+            if (!kilometers || kilometers <= 0) return "Enter a value to see calculations with contextual scaling references instantly.";
+            
+            if (kilometers < 1) {
+                return `That is roughly ${(kilometers * 1000).toFixed(0)} meters, matching around ${(kilometers * 1300).toFixed(0)} steps.`;
+            } else if (kilometers < 10) {
+                return `Roughly equivalent to ${(kilometers / 0.4).toFixed(1)} standard athletic track laps.`;
+            } else if (kilometers < 100) {
+                return `About the length of driving across Manhattan Island ${(kilometers / 21.6).toFixed(1)} times over.`;
+            } else {
+                return `That represents roughly ${(kilometers / 40075 * 100).toFixed(3)}% of the Earth's absolute equator circumference.`;
+            }
+        }
+
+        function calculate() {
+            let rawVal = mainInput.value.trim();
+            
+            if (!rawVal) {
+                outputValue.textContent = "0";
+                contextText.textContent = generateContext(0);
+                return;
+            }
+
+            // Real-time inline unit parsing engine
+            const match = rawVal.match(/^([0-9.]+)\s*([a-zA-Z]*)$/);
+            let numericValue = NaN;
+
+            if (match) {
+                numericValue = parseFloat(match[1]);
+                let systemUnit = match[2].toLowerCase();
+
+                if (systemUnit === 'mi' || systemUnit === 'mile' || systemUnit === 'miles') {
+                    if (isKmToMi) { isKmToMi = false; updateUIStrings(); }
+                } else if (systemUnit === 'km' || systemUnit === 'kilometer' || systemUnit === 'kilometers') {
+                    if (!isKmToMi) { isKmToMi = true; updateUIStrings(); }
+                }
+            } else {
+                numericValue = parseFloat(rawVal);
+            }
+
+            if (isNaN(numericValue)) {
+                outputValue.textContent = "Error";
+                contextText.textContent = "Please enter a valid numeric value expression.";
+                return;
+            }
+
+            let computedValue = 0;
+            let targetKm = 0;
+
+            if (isKmToMi) {
+                computedValue = numericValue * KM_TO_MI_FACTOR;
+                targetKm = numericValue;
+            } else {
+                computedValue = numericValue * MI_TO_KM_FACTOR;
+                targetKm = computedValue;
+            }
+
+            // High precision output dynamic decimal reduction
+            outputValue.textContent = parseFloat(computedValue.toFixed(4));
+            contextText.textContent = generateContext(targetKm);
+        }
+
+        // Functional Listeners
+        swapBtn.addEventListener('click', () => {
+            isKmToMi = !isKmToMi;
+            updateUIStrings();
+            calculate();
+            mainInput.focus();
+        });
+
+        mainInput.addEventListener('input', calculate);
+    </script>
+</body>
+</html>

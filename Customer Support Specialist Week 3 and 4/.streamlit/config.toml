@@ -1,0 +1,9 @@
+# Locked Design Tokens — see the design doc's "Design Tokens" section
+# (~/.gstack/projects/Jeffreys-World-Customer-Support-Specialist-Project/flextop-main-design-20260723-132807.md)
+[theme]
+base = "light"
+primaryColor = "#4F46E5"
+backgroundColor = "#FAFAFA"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#1A1A1E"
+font = "sans serif"
