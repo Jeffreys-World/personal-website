@@ -4,15 +4,12 @@ The payoff of the whole pipeline: instead of opening an unsorted queue and
 running an AI assistant ticket-by-ticket, Jordan opens an already-sorted list.
 This app reads the batch job's ``classified_tickets.json`` and renders:
 
-  * a paginated queue view sorted by priority + urgency score, card-based with
-    a real click-to-select state and a (simulated) SLA countdown;
-  * a detail view with the plain-language rationale and suggested queue;
+  * a queue view sorted by priority + urgency score, with Zendesk-ish accents
+    and a (simulated) SLA countdown;
+  * a detail view that leads with the customer's own words, then the
+    plain-language rationale and suggested queue;
   * a confirm / adjust control — the agent always has final say — that logs
     every override to ``results/override_log.csv`` for the manual spot-check.
-
-Visual identity, spacing, and CSS-scoping decisions here follow the locked
-Design Tokens in the design doc (see office-hours + plan-design-review +
-plan-eng-review artifacts under ~/.gstack/projects/).
 
 Run:  ``streamlit run app.py``
 """
@@ -22,9 +19,10 @@ from __future__ import annotations
 import csv
 import datetime as dt
 import hashlib
+import html
 import json
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional
 
 import pandas as pd
 import streamlit as st
@@ -37,26 +35,17 @@ DATA_CANDIDATES = [
 ]
 OVERRIDE_LOG = REPO_ROOT / "results" / "override_log.csv"
 
-# --- Design Tokens (locked) ---------------------------------------------------
-# Colors, type scale, spacing, and radii below match the design doc's "Design
-# Tokens" section. .streamlit/config.toml carries base=light + the primary
-# accent/background/text colors; anything config.toml can't express (scoped
-# selectors, the Inter font import, the responsive media query) is injected
-# once via inject_css(), never per-row.
-BG = "#FAFAFA"
-SURFACE = "#FFFFFF"
-BORDER = "#E5E5E7"
-TEXT = "#1A1A1E"
-TEXT_MUTED = "#4B5563"
-ACCENT = "#4F46E5"
-ACCENT_TINT = "#EEF2FF"
-
-# Product priority scale → badge colors (WCAG AA-checked pairs), SLA target.
+# Product priority scale → (emoji, accent colour, SLA target in hours).
+#
+# Accent colours are the severity ramp from the portfolio's DESIGN.md. They
+# replace the original Material palette, whose amber (#fbc02d) sat at roughly
+# 1.6:1 against the white surface — legible as a dot, unreadable as text.
+# Every colour below clears WCAG AA (4.5:1) on both #FFFFFF and #FAFAFA.
 CATEGORY_STYLE: Dict[str, Dict[str, object]] = {
-    "Critical": {"badge_bg": "#FEE2E2", "badge_text": "#991B1B", "sla_hours": 1},
-    "High": {"badge_bg": "#FFEDD5", "badge_text": "#9A3412", "sla_hours": 4},
-    "Medium": {"badge_bg": "#FEF9C3", "badge_text": "#854D0E", "sla_hours": 24},
-    "Low": {"badge_bg": "#DCFCE7", "badge_text": "#166534", "sla_hours": 72},
+    "Critical": {"emoji": "🔴", "color": "#C1300B", "sla_hours": 1},
+    "High": {"emoji": "🟠", "color": "#A45709", "sla_hours": 4},
+    "Medium": {"emoji": "🟡", "color": "#846800", "sla_hours": 24},
+    "Low": {"emoji": "🟢", "color": "#3F6B4A", "sla_hours": 72},
 }
 CATEGORY_ORDER = ["Critical", "High", "Medium", "Low"]
 QUEUE_OPTIONS = [
@@ -65,7 +54,154 @@ QUEUE_OPTIONS = [
     "Returns and Exchanges", "Sales and Pre-Sales", "Human Resources", "General Inquiry",
 ]
 
-PAGE_SIZE = 50  # queue pagination — see design doc "Pagination" (critical fix)
+
+# --- Presentation -------------------------------------------------------------
+
+# Streamlit's defaults are tuned for dashboards, not for reading. Triage is a
+# reading task: the agent's job is to absorb a customer's message and make a
+# call. So the type scale is raised, the measure is capped, and the panels
+# animate in on selection so a rerun reads as "new ticket loaded" rather than
+# as a flicker. Motion is disabled under prefers-reduced-motion.
+APP_CSS = """
+<style>
+  :root {
+    --tri-ink: #1A1A1E;
+    --tri-body: #3F3F46;
+    --tri-muted: #63636E;
+    --tri-rule: #E4E4E9;
+    --tri-surface: #FFFFFF;
+    --tri-accent: #4F46E5;
+  }
+
+  /* ---- Type scale: the headline fix. Streamlit ships ~14px in dense
+     widgets; triage copy needs to be readable at a glance. ---- */
+  html, body, .stApp, [data-testid="stAppViewContainer"] {
+    font-size: 17px;
+  }
+  .stMarkdown p, .stMarkdown li {
+    font-size: 1rem;
+    line-height: 1.68;
+    color: var(--tri-body);
+  }
+  h1, h2, h3, h4 { color: var(--tri-ink); letter-spacing: -0.015em; }
+  [data-testid="stHeading"] h1 { font-size: 2.1rem; }
+  [data-testid="stHeading"] h2 { font-size: 1.45rem; }
+  [data-testid="stHeading"] h3 { font-size: 1.2rem; }
+
+  /* Queue table: bigger rows, readable cells, no cramped 12px text. */
+  [data-testid="stDataFrame"] { font-size: 0.95rem; }
+  [data-testid="stDataFrame"] [role="gridcell"] { padding-top: 6px; padding-bottom: 6px; }
+
+  /* KPI row */
+  [data-testid="stMetricValue"] { font-size: 1.9rem; font-weight: 650; }
+  [data-testid="stMetricLabel"] { font-size: 0.9rem; }
+
+  /* ---- Motion: panels arrive, they don't blink into place ---- */
+  @keyframes triageRise {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: none; }
+  }
+  .tri-animate { animation: triageRise 260ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .tri-delay-1 { animation-delay: 45ms; }
+  .tri-delay-2 { animation-delay: 90ms; }
+
+  /* ---- Ticket header ---- */
+  .tri-head {
+    border-left: 5px solid var(--cat-color, var(--tri-accent));
+    padding: 0.55rem 0 0.55rem 0.95rem;
+    margin-bottom: 1.1rem;
+  }
+  .tri-head-top {
+    font-size: 1.22rem; font-weight: 650; color: var(--tri-ink);
+    line-height: 1.3; margin-bottom: 0.2rem;
+  }
+  .tri-head-sub { font-size: 1rem; color: var(--tri-muted); line-height: 1.5; }
+
+  /* ---- Conversation panel: the customer's own words, always visible ---- */
+  .tri-convo {
+    border: 1px solid var(--tri-rule);
+    border-radius: 10px;
+    background: var(--tri-surface);
+    overflow: hidden;
+    margin-bottom: 1.1rem;
+  }
+  .tri-convo-bar {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 12px; padding: 0.6rem 1rem;
+    background: #F6F6F9; border-bottom: 1px solid var(--tri-rule);
+  }
+  .tri-convo-who {
+    font-size: 0.78rem; font-weight: 650; letter-spacing: 0.07em;
+    text-transform: uppercase; color: var(--tri-muted);
+  }
+  .tri-convo-id {
+    font-size: 0.78rem; color: var(--tri-muted);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  .tri-convo-subject {
+    padding: 0.9rem 1rem 0.2rem;
+    font-size: 1.06rem; font-weight: 620; color: var(--tri-ink); line-height: 1.4;
+  }
+  .tri-convo-body {
+    padding: 0.5rem 1rem 1rem;
+    font-size: 1rem; line-height: 1.72; color: var(--tri-body);
+    max-width: 68ch; white-space: pre-wrap; word-break: break-word;
+  }
+  .tri-convo-empty { color: var(--tri-muted); font-style: italic; }
+  .tri-tags { padding: 0 1rem 0.95rem; display: flex; flex-wrap: wrap; gap: 6px; }
+  .tri-tag {
+    font-size: 0.76rem; color: var(--tri-muted);
+    border: 1px solid var(--tri-rule); border-radius: 4px; padding: 2px 8px;
+  }
+
+  /* ---- Fact rows (replaces st.metric in the detail pane, which would
+     otherwise be summed by the queue-size regression test) ---- */
+  .tri-facts { border-top: 1px solid var(--tri-rule); margin-bottom: 1rem; }
+  .tri-fact {
+    display: flex; align-items: baseline; gap: 14px;
+    padding: 0.6rem 0.15rem; border-bottom: 1px solid var(--tri-rule);
+  }
+  .tri-fact-key {
+    flex: 0 0 9.5rem; font-size: 0.78rem; font-weight: 600;
+    letter-spacing: 0.07em; text-transform: uppercase; color: var(--tri-muted);
+  }
+  .tri-fact-val { font-size: 1rem; color: var(--tri-ink); }
+  .tri-fact-val .tri-sig {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 0.88rem; color: var(--tri-body);
+  }
+
+  .tri-empty {
+    border: 1px dashed var(--tri-rule); border-radius: 10px;
+    padding: 2.2rem 1.5rem; text-align: center; color: var(--tri-muted);
+    font-size: 1rem; line-height: 1.6;
+  }
+
+  /* Buttons and inputs: bigger tap targets, smooth state changes. */
+  .stButton button {
+    font-size: 0.98rem; font-weight: 600; padding: 0.5rem 1rem;
+    border-radius: 8px; transition: transform 140ms ease, box-shadow 140ms ease,
+      background-color 140ms ease, border-color 140ms ease;
+  }
+  .stButton button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(26, 26, 30, 0.10);
+  }
+  .stButton button:active:not(:disabled) { transform: translateY(0); }
+
+  section[data-testid="stSidebar"] { font-size: 0.98rem; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tri-animate { animation: none !important; }
+    .stButton button { transition: none !important; }
+    .stButton button:hover:not(:disabled) { transform: none !important; }
+  }
+</style>
+"""
+
+
+def inject_css() -> None:
+    st.markdown(APP_CSS, unsafe_allow_html=True)
 
 
 # --- Data loading ------------------------------------------------------------
@@ -93,7 +229,7 @@ def sla_state(category: str, age_hours: float) -> str:
     target = CATEGORY_STYLE[category]["sla_hours"]
     remaining = target - age_hours
     if remaining <= 0:
-        return "⚠ breached"
+        return "⚠️ breached"
     if remaining <= target * 0.25:
         return f"⏳ {remaining:.1f}h left"
     return f"{remaining:.1f}h left"
@@ -101,254 +237,192 @@ def sla_state(category: str, age_hours: float) -> str:
 
 # --- Override logging ---------------------------------------------------------
 
-def log_override(ticket_id: str, ai_category: str, agent_category: str, action: str) -> bool:
-    """Append a confirm/adjust decision to results/override_log.csv.
-
-    Returns True on success. On failure (e.g. a read-only results/ directory),
-    shows a user-visible error instead of letting the exception crash the rerun.
-    """
-    try:
-        OVERRIDE_LOG.parent.mkdir(parents=True, exist_ok=True)
-        is_new = not OVERRIDE_LOG.exists()
-        with open(OVERRIDE_LOG, "a", newline="", encoding="utf-8") as fh:
-            writer = csv.writer(fh)
-            if is_new:
-                writer.writerow(["timestamp", "ticket_id", "ai_category", "agent_category", "action"])
-            writer.writerow([
-                dt.datetime.now().isoformat(timespec="seconds"),
-                ticket_id, ai_category, agent_category, action,
-            ])
-        return True
-    except OSError:
-        st.error("Couldn't save your decision — try again.")
-        return False
-
-
-# --- Styling -------------------------------------------------------------------
-
-def inject_css() -> None:
-    """Inject all CSS this app needs, once, regardless of ticket count.
-
-    Selector scoping (eng review): ticket_queue and detail_actions are two
-    separately-keyed containers so the ghost-button rule for queue rows never
-    bleeds into the detail panel's Confirm/Save-override buttons, and vice
-    versa — no carve-outs from "no default Streamlit chrome showing through."
-    """
-    st.markdown(
-        f"""
-        <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        html, body, [class*="css"] {{
-            font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        }}
-        /* Slim header per the wireframe — st.title() is kept (not swapped for
-           st.markdown) so AppTest's at.title collection still finds it. */
-        [data-testid="stAppViewContainer"] h1 {{
-            font-size: 22px !important;
-            margin-bottom: 0 !important;
-        }}
-        .badge-chip {{
-            display: inline-block;
-            border-radius: 6px;
-            padding: 2px 8px;
-            font-size: 13px;
-            font-weight: 600;
-            white-space: nowrap;
-        }}
-        .empty-state {{
-            border: 1px solid {BORDER};
-            border-radius: 8px;
-            padding: 24px;
-            text-align: center;
-            color: {TEXT_MUTED};
-            font-size: 16px;
-        }}
-        /* Queue rows: ghost-skinned buttons as the click target. Scoped to
-           .st-key-ticket_queue only — does not touch detail_actions. */
-        .st-key-ticket_queue div[data-testid="stButton"] button {{
-            border: none;
-            background: transparent;
-            text-align: left;
-            width: 100%;
-            padding: 8px 4px;
-            font-size: 16px;
-            color: {TEXT};
-        }}
-        .st-key-ticket_queue div[data-testid="stButton"] button:hover {{
-            color: {ACCENT};
-        }}
-        .st-key-ticket_queue div[data-testid="stButton"] button:focus-visible {{
-            outline: 2px solid {ACCENT};
-            outline-offset: 2px;
-        }}
-        /* Detail panel action buttons: their own scope, own styling — not a
-           default-styling carve-out (eng review contradiction fix). */
-        .st-key-detail_actions div[data-testid="stButton"] button {{
-            border-radius: 6px;
-            border: 1px solid {BORDER};
-        }}
-        .st-key-detail_actions div[data-testid="stButton"] button:focus-visible {{
-            outline: 2px solid {ACCENT};
-            outline-offset: 2px;
-        }}
-        /* Responsive: below ~900px, stack the queue/detail split vertically
-           instead of side-by-side (design doc "Responsive & Accessibility"). */
-        @media (max-width: 900px) {{
-            .st-key-queue_detail_split div[data-testid="stHorizontalBlock"] {{
-                flex-direction: column;
-            }}
-        }}
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def _selected_row_css(position: Optional[int]) -> None:
-    """Give the selected row's own bordered container an accent outline.
-
-    Scoped by within-page position (not ticket id) so it stays CSS-safe
-    regardless of what characters appear in real ticket ids.
-    """
-    if position is None:
-        return
-    st.markdown(
-        f"<style>.st-key-row_container_{position} "
-        f"{{ border-color: {ACCENT} !important; background: {ACCENT_TINT} !important; }}</style>",
-        unsafe_allow_html=True,
-    )
+def log_override(ticket_id: str, ai_category: str, agent_category: str, action: str) -> None:
+    """Append a confirm/adjust decision to results/override_log.csv."""
+    OVERRIDE_LOG.parent.mkdir(parents=True, exist_ok=True)
+    is_new = not OVERRIDE_LOG.exists()
+    with open(OVERRIDE_LOG, "a", newline="", encoding="utf-8") as fh:
+        writer = csv.writer(fh)
+        if is_new:
+            writer.writerow(["timestamp", "ticket_id", "ai_category", "agent_category", "action"])
+        writer.writerow([
+            dt.datetime.now().isoformat(timespec="seconds"),
+            ticket_id, ai_category, agent_category, action,
+        ])
 
 
 # --- Views -------------------------------------------------------------------
 
-def render_queue(tickets: List[Dict], confirmed_ids: Set[str]) -> Optional[str]:
-    """Render the paginated, card-based queue. Returns the selected ticket id."""
-    if not tickets:
-        st.markdown(
-            "<div class='empty-state'>No tickets match your filters.</div>",
-            unsafe_allow_html=True,
-        )
-        if st.button("Clear filters"):
-            st.session_state["_reset_filters"] = True
-            st.rerun()
-        return st.session_state.get("selected_ticket_id")
+def render_queue(tickets: List[Dict]) -> Optional[int]:
+    """Render the sorted queue table; return the selected row's positional index."""
+    rows = []
+    for t in tickets:
+        cat = t["category"]
+        age = simulated_age_hours(t["id"])
+        # The safety-net flag rides along in the Priority cell rather than
+        # claiming a column of its own. In a half-width pane every column costs
+        # Subject width, and a truncated subject makes the queue unscannable —
+        # which is the one job the queue has.
+        shield = " 🛡️" if t.get("safety_net_triggered") else ""
+        rows.append({
+            "Priority": f"{CATEGORY_STYLE[cat]['emoji']} {cat}{shield}",
+            "Score": t["score"],
+            "Subject": t["subject"] or "(no subject)",
+            "SLA": sla_state(cat, age),
+        })
+    df = pd.DataFrame(rows)
 
-    total = len(tickets)
-    page_count = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
-    page = min(st.session_state.get("queue_page", 0), page_count - 1)
-    st.session_state["queue_page"] = page
-    start = page * PAGE_SIZE
-    page_tickets = tickets[start:start + PAGE_SIZE]
-
-    selected_id = st.session_state.get("selected_ticket_id")
-    selected_position = next(
-        (i for i, t in enumerate(page_tickets) if t["id"] == selected_id), None
+    event = st.dataframe(
+        df,
+        use_container_width=True,
+        hide_index=True,
+        on_select="rerun",
+        selection_mode="single-row",
+        column_config={
+            "Priority": st.column_config.TextColumn(
+                "Priority", width="small", help="🛡️ marks a Critical-class safety-net escalation"
+            ),
+            "Score": st.column_config.ProgressColumn(
+                "Score", min_value=0, max_value=100, format="%d", width="small"
+            ),
+            # "medium", not "large": a large Subject column is greedy enough to
+            # push SLA out of the pane entirely. The countdown is the reason the
+            # queue is scannable, so Subject yields the width instead.
+            "Subject": st.column_config.TextColumn("Subject", width="medium"),
+            "SLA": st.column_config.TextColumn("SLA", width="small"),
+        },
+        height=560,
     )
-    _selected_row_css(selected_position)
+    selected = event.selection.rows
+    return selected[0] if selected else None
 
-    with st.container(key="ticket_queue"):
-        for i, t in enumerate(page_tickets):
-            cat = t["category"]
-            style = CATEGORY_STYLE[cat]
-            age = simulated_age_hours(t["id"])
-            with st.container(key=f"row_container_{i}", border=True):
-                col_badge, col_row = st.columns([1, 5])
-                with col_badge:
-                    badge_html = (
-                        f"<span class='badge-chip' style='background:{style['badge_bg']};"
-                        f"color:{style['badge_text']}'>{cat.upper()}</span>"
-                    )
-                    if t.get("safety_net_triggered"):
-                        badge_html += (
-                            " <span title='Safety-net escalated to at least High' "
-                            "aria-label='Safety-net escalated to at least High'>🛡️</span>"
-                        )
-                    st.markdown(badge_html, unsafe_allow_html=True)
-                with col_row:
-                    label = (
-                        f"{t['subject'] or '(no subject)'}  ·  "
-                        f"{t.get('suggested_queue') or '—'}  ·  {sla_state(cat, age)}"
-                    )
-                    if t["id"] in confirmed_ids:
-                        label = f"✓ {label}"
-                    if st.button(label, key=f"row_{t['id']}", use_container_width=True):
-                        st.session_state["selected_ticket_id"] = t["id"]
 
-    nav_prev, nav_info, nav_next = st.columns([1, 2, 1])
-    with nav_prev:
-        if st.button("← Previous", disabled=(page == 0), key="queue_prev"):
-            st.session_state["queue_page"] = page - 1
-            st.rerun()
-    with nav_info:
-        st.caption(f"Page {page + 1} of {page_count} ({total} tickets)")
-    with nav_next:
-        if st.button("Next →", disabled=(page >= page_count - 1), key="queue_next"):
-            st.session_state["queue_page"] = page + 1
-            st.rerun()
+def render_conversation(ticket: Dict) -> None:
+    """The customer's own words — the thing you actually triage on.
 
-    return st.session_state.get("selected_ticket_id")
+    This used to live inside a collapsed ``st.expander("Ticket body")``, which
+    meant the single most important piece of context on the screen took a click
+    to reach. It now leads the detail pane.
+    """
+    subject = html.escape(ticket.get("subject") or "(no subject)")
+    body = (ticket.get("body") or "").strip()
+    body_html = (
+        html.escape(body)
+        if body
+        else '<span class="tri-convo-empty">(no message body on this ticket)</span>'
+    )
+    tags = ticket.get("tags") or []
+    tags_html = ""
+    if tags:
+        chips = "".join(f'<span class="tri-tag">{html.escape(str(tag))}</span>' for tag in tags)
+        tags_html = f'<div class="tri-tags">{chips}</div>'
+
+    st.markdown(
+        f'<div class="tri-convo tri-animate tri-delay-1">'
+        f'  <div class="tri-convo-bar">'
+        f'    <span class="tri-convo-who">Customer wrote</span>'
+        f'    <span class="tri-convo-id">{html.escape(str(ticket.get("id", "")))}</span>'
+        f'  </div>'
+        f'  <div class="tri-convo-subject">{subject}</div>'
+        f'  <div class="tri-convo-body">{body_html}</div>'
+        f'  {tags_html}'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def render_detail(ticket: Dict) -> None:
     cat = ticket["category"]
     style = CATEGORY_STYLE[cat]
+
     st.markdown(
-        f"<div style='border-left:4px solid {style['badge_text']};padding:0.4rem 0.9rem;'>"
-        f"<span class='badge-chip' style='background:{style['badge_bg']};"
-        f"color:{style['badge_text']}'>{cat.upper()}</span>"
-        f"<span style='margin-left:8px;font-size:16px'>score {ticket['score']}/100</span>"
-        f"<div style='color:{TEXT_MUTED};font-size:16px;margin-top:4px'>"
-        f"{ticket['subject'] or '(no subject)'}</div></div>",
+        f'<div class="tri-head tri-animate" style="--cat-color:{style["color"]}">'
+        f'  <div class="tri-head-top">{style["emoji"]} {html.escape(cat)}'
+        f'    &nbsp;·&nbsp; score {int(ticket["score"])}/100</div>'
+        f'  <div class="tri-head-sub">{html.escape(ticket.get("subject") or "(no subject)")}</div>'
+        f'</div>',
         unsafe_allow_html=True,
     )
 
     if ticket.get("safety_net_triggered"):
         st.warning("🛡️ Critical-class safety net escalated this ticket to at least High.")
 
+    # Lead with what the customer said, then explain the score.
+    render_conversation(ticket)
+
     st.markdown("**Why this priority**")
     for bullet in ticket.get("rationale", []) or ["(run the Claude layer for a rationale)"]:
         st.markdown(f"- {bullet}")
 
-    col1, col2 = st.columns(2)
-    col1.metric("Suggested queue", ticket.get("suggested_queue") or "—")
     signals = ticket.get("matched_signals") or []
-    col2.metric("Signals matched", len(signals))
-    if signals:
-        col2.caption(", ".join(signals))
-
-    with st.expander("Ticket body"):
-        st.write(ticket.get("body") or "(empty)")
-
-    with st.expander("Ground-truth labels (from dataset, for reference)"):
-        st.write(f"Priority label: **{ticket.get('true_priority', '—')}**")
-        st.write(f"Queue label: **{ticket.get('true_queue', '—')}**")
+    signals_html = (
+        f'<span class="tri-sig">{html.escape(", ".join(str(s) for s in signals))}</span>'
+        if signals
+        else '<span class="tri-sig">none</span>'
+    )
+    # Deliberately NOT st.metric: the queue-size regression test in
+    # tests/test_app_smoke.py sums every metric that isn't "Tickets in queue",
+    # so any metric rendered here would corrupt that assertion.
+    st.markdown(
+        f'<div class="tri-facts tri-animate tri-delay-2">'
+        f'  <div class="tri-fact"><span class="tri-fact-key">Suggested queue</span>'
+        f'    <span class="tri-fact-val">{html.escape(ticket.get("suggested_queue") or "—")}</span></div>'
+        f'  <div class="tri-fact"><span class="tri-fact-key">Signals ({len(signals)})</span>'
+        f'    <span class="tri-fact-val">{signals_html}</span></div>'
+        f'  <div class="tri-fact"><span class="tri-fact-key">Dataset label</span>'
+        f'    <span class="tri-fact-val">priority {html.escape(str(ticket.get("true_priority", "—")))}'
+        f'      &nbsp;·&nbsp; queue {html.escape(str(ticket.get("true_queue", "—")))}</span></div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
     render_confirm_adjust(ticket)
 
 
 def render_confirm_adjust(ticket: Dict) -> None:
     """The 'agent has final say' control — accept or override the category."""
-    st.markdown("---")
     st.markdown("**Agent decision** — the system recommends; you decide.")
     cat = ticket["category"]
-    with st.container(key="detail_actions"):
-        col1, col2 = st.columns([1, 2])
-        with col1:
-            if st.button("✅ Confirm", use_container_width=True):
-                if log_override(ticket["id"], cat, cat, "confirm"):
-                    st.session_state["confirmed_ids"].add(ticket["id"])
-                    st.toast(f"Confirmed {ticket['id']} as {cat}.", icon="✅")
-                    st.rerun()
-        with col2:
-            new_cat = st.selectbox(
-                "Override category", CATEGORY_ORDER,
-                index=CATEGORY_ORDER.index(cat), key=f"ovr_{ticket['id']}",
+    col1, col2 = st.columns([1, 2])
+    with col1:
+        if st.button("✅ Confirm", use_container_width=True):
+            log_override(ticket["id"], cat, cat, "confirm")
+            st.session_state["last_action"] = f"Confirmed {ticket['id']} as {cat}."
+    with col2:
+        new_cat = st.selectbox(
+            "Override category", CATEGORY_ORDER,
+            index=CATEGORY_ORDER.index(cat), key=f"ovr_{ticket['id']}",
+        )
+        if st.button("✏️ Save override", use_container_width=True, disabled=(new_cat == cat)):
+            log_override(ticket["id"], cat, new_cat, "override")
+            st.session_state["last_action"] = f"Overrode {ticket['id']}: {cat} → {new_cat}."
+
+    if st.session_state.get("last_action"):
+        st.success(st.session_state["last_action"])
+
+
+@st.fragment
+def render_workspace(filtered: List[Dict]) -> None:
+    """Queue + detail, isolated in a fragment.
+
+    Selecting a row used to rerun the whole script: sidebar, filters, KPI row and
+    all. Scoping both panes into one fragment means a click reruns only this
+    block, which is what makes selection feel immediate instead of janky.
+    """
+    left, right = st.columns([1.25, 1], gap="large")
+    with left:
+        st.subheader("Queue")
+        selected_idx = render_queue(filtered)
+    with right:
+        st.subheader("Ticket detail")
+        if selected_idx is not None and selected_idx < len(filtered):
+            render_detail(filtered[selected_idx])
+        else:
+            st.markdown(
+                '<div class="tri-empty">Select a ticket in the queue to read the'
+                ' customer\'s message, see why it scored the way it did, and act on it.</div>',
+                unsafe_allow_html=True,
             )
-            if st.button("✏️ Save override", use_container_width=True, disabled=(new_cat == cat)):
-                if log_override(ticket["id"], cat, new_cat, "override"):
-                    st.session_state["confirmed_ids"].add(ticket["id"])
-                    st.toast(f"Overrode {ticket['id']}: {cat} → {new_cat}.", icon="✏️")
-                    st.rerun()
 
 
 # --- App ---------------------------------------------------------------------
@@ -356,6 +430,8 @@ def render_confirm_adjust(ticket: Dict) -> None:
 def main() -> None:
     st.set_page_config(page_title="Jordan's Ticket Triage", page_icon="🎫", layout="wide")
     inject_css()
+    st.title("🎫 Jordan's Ticket Triage Assistant")
+    st.caption("A pre-sorted support queue: priority, urgency score, and a plain-language why.")
 
     tickets = load_tickets()
     if not tickets:
@@ -365,28 +441,11 @@ def main() -> None:
         )
         return
 
-    st.session_state.setdefault("confirmed_ids", set())
-    st.session_state.setdefault("queue_page", 0)
-    st.session_state.setdefault("selected_ticket_id", None)
-
-    # Deferred filter reset (eng review pattern): a widget's session_state key
-    # can't be reassigned after that widget has already been instantiated this
-    # run, so "Clear filters" (inside render_queue, called later) sets a flag
-    # and reruns; we consume the flag here, before the sidebar widgets exist.
-    if st.session_state.pop("_reset_filters", False):
-        st.session_state["filter_priority"] = CATEGORY_ORDER
-        st.session_state["filter_query"] = ""
-        st.session_state["filter_only_net"] = False
-
     with st.sidebar:
         st.header("Filters")
-        chosen = st.multiselect(
-            "Priority", CATEGORY_ORDER, default=CATEGORY_ORDER, key="filter_priority"
-        )
-        query = st.text_input("Search subject/body", key="filter_query")
-        only_net = st.checkbox("Only safety-net escalations", key="filter_only_net")
-        st.markdown("---")
-        st.metric("Tickets in queue", len(tickets))
+        chosen = st.multiselect("Priority", CATEGORY_ORDER, default=CATEGORY_ORDER)
+        query = st.text_input("Search subject/body")
+        only_net = st.checkbox("Only safety-net escalations")
 
     filtered = [
         t for t in tickets
@@ -395,41 +454,18 @@ def main() -> None:
         and (not query or query.lower() in (t["subject"] + " " + t["body"]).lower())
     ]
 
-    # Reset to page 1 whenever the filtered result set changes shape, so a
-    # stale queue_page from a larger previous result set can't point past the
-    # end of a newly-narrowed one.
-    filter_signature = (tuple(sorted(chosen)), query, only_net)
-    if st.session_state.get("_last_filter_signature") != filter_signature:
-        st.session_state["queue_page"] = 0
-        st.session_state["_last_filter_signature"] = filter_signature
+    with st.sidebar:
+        st.markdown("---")
+        # Reflect the *filtered* queue size, not the full dataset — otherwise the
+        # metric reads 800 while the queue shows a handful (found by /qa).
+        st.metric("Tickets in queue", len(filtered))
 
     counts = {c: sum(1 for t in filtered if t["category"] == c) for c in CATEGORY_ORDER}
-    header_cols = st.columns([3, 1, 1, 1, 1])
-    with header_cols[0]:
-        st.title("🎫 Jordan's Ticket Triage")
-        st.caption("A pre-sorted support queue: priority, urgency score, and a plain-language why.")
-    for col, c in zip(header_cols[1:], CATEGORY_ORDER):
-        style = CATEGORY_STYLE[c]
-        col.markdown(
-            f"<div style='border:1px solid {BORDER};border-radius:8px;padding:6px 10px;"
-            f"text-align:center;background:{SURFACE}'>"
-            f"<div style='font-size:13px;color:{TEXT_MUTED}'>{c}</div>"
-            f"<div style='font-size:16px;font-weight:600;color:{TEXT}'>{counts[c]}</div></div>",
-            unsafe_allow_html=True,
-        )
+    cols = st.columns(4)
+    for col, c in zip(cols, CATEGORY_ORDER):
+        col.metric(f"{CATEGORY_STYLE[c]['emoji']} {c}", counts[c])
 
-    with st.container(key="queue_detail_split"):
-        left, right = st.columns([3, 2])
-        with left:
-            st.subheader("Queue")
-            selected_id = render_queue(filtered, st.session_state["confirmed_ids"])
-        with right:
-            st.subheader("Ticket detail")
-            selected_ticket = next((t for t in filtered if t["id"] == selected_id), None)
-            if selected_ticket is not None:
-                render_detail(selected_ticket)
-            else:
-                st.info("Select a ticket in the queue to see its rationale and act on it.")
+    render_workspace(filtered)
 
 
 if __name__ == "__main__":
