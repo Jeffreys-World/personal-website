@@ -3,236 +3,368 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Jeffrey De La Cruz — Frontend Developer</title>
-  <meta name="description" content="Portfolio of Jeffrey De La Cruz, a Frontend Developer building fast, accessible interfaces with semantic HTML, modern CSS, and vanilla JavaScript." />
-  <meta name="theme-color" content="#0f172a" />
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230f172a'/%3E%3Ctext x='50' y='67' font-family='Arial, sans-serif' font-size='44' font-weight='700' fill='%2364ffda' text-anchor='middle'%3EJD%3C/text%3E%3C/svg%3E" />
+  <title>Jeffrey De La Cruz — Software Engineer</title>
+  <meta name="description" content="Jeffrey De La Cruz builds the layer that decides what matters before a human opens it. Case study: a support-queue triage system evaluated on 11,923 tickets." />
+  <meta name="theme-color" content="#FAF7F2" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#14120F" media="(prefers-color-scheme: dark)" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='4' fill='%2314110D'/%3E%3Crect x='18' y='22' width='40' height='7' fill='%23C1300B'/%3E%3Crect x='18' y='38' width='64' height='7' fill='%23FAF7F2' opacity='.55'/%3E%3Crect x='18' y='54' width='52' height='7' fill='%23FAF7F2' opacity='.35'/%3E%3Crect x='18' y='70' width='30' height='7' fill='%23FAF7F2' opacity='.2'/%3E%3C/svg%3E" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
 
   <link rel="stylesheet" href="style.css" />
+
+  <script>
+    /* Runs before first paint: sets the theme so there is no flash of the wrong
+       mode, and marks the document as scripted. Scroll-reveal is gated on `.js`,
+       so if this script never runs the content is simply visible rather than
+       hidden forever. */
+    (function () {
+      var el = document.documentElement;
+      el.classList.add('js');
+      try {
+        var stored = localStorage.getItem('theme');
+        el.dataset.theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      } catch (e) {
+        el.dataset.theme = 'light';
+      }
+    })();
+  </script>
 </head>
 <body id="top">
-  <a class="skip-link" href="#main-content">Skip to main content</a>
+  <a class="skip-link" href="#main">Skip to content</a>
 
-  <div class="layout">
-    <!-- ============ SIDEBAR ============ -->
-    <header class="sidebar">
-      <div class="sidebar-content">
+  <div class="progress" aria-hidden="true"><span class="progress-bar" id="progress-bar"></span></div>
 
-        <div class="sidebar-top">
-          <h1 class="name">
-            <a href="#top">Jeffrey De La Cruz<span class="cursor" aria-hidden="true"></span></a>
-          </h1>
-          <p class="tagline">Frontend Developer</p>
-          <p class="intro">
-            I build fast, accessible interfaces with semantic HTML, modern CSS,
-            and clean vanilla JavaScript — then make sure they hold up in production.
+  <!-- ================= STICKY HEADER (revealed after the hero clears) ================= -->
+  <header class="masthead" id="masthead">
+    <div class="masthead-inner">
+      <a class="masthead-name" href="#top">Jeffrey De La Cruz</a>
+
+      <nav class="masthead-nav" aria-label="Sections">
+        <ul>
+          <li><a href="#work" class="nav-link" data-nav="work">Work</a></li>
+          <li><a href="#approach" class="nav-link" data-nav="approach">Approach</a></li>
+          <li><a href="#contact" class="nav-link" data-nav="contact">Contact</a></li>
+        </ul>
+      </nav>
+
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-live="polite">
+        <svg class="icon-sun" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4.2" />
+          <path d="M12 2v2.4M12 19.6V22M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2 12h2.4M19.6 12H22M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7" />
+        </svg>
+        <svg class="icon-moon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20 14.2A8.2 8.2 0 1 1 9.8 4a6.8 6.8 0 0 0 10.2 10.2z" />
+        </svg>
+        <span class="visually-hidden" id="theme-toggle-label">Switch to dark mode</span>
+      </button>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <!-- ================= HERO ================= -->
+    <section class="hero" aria-labelledby="hero-heading">
+      <p class="hero-eyebrow">Jeffrey De La Cruz <span aria-hidden="true">·</span> Software Engineer <span aria-hidden="true">·</span> New York</p>
+
+      <h1 class="hero-heading" id="hero-heading">
+        A payment-failure ticket sat unread for <em>four hours.</em>
+      </h1>
+
+      <p class="hero-lede">
+        Nobody was working slowly. The queue simply wasn't sorted, so nothing made
+        that ticket stand out. I build the missing layer: the one that decides what
+        matters before a person ever opens it.
+      </p>
+
+      <ul class="hero-links">
+        <li><a class="link-primary" href="#work">Read the case study</a></li>
+        <li><a href="https://github.com/Jeffreys-World" target="_blank" rel="noreferrer noopener">GitHub<span class="ext" aria-hidden="true">↗</span></a></li>
+        <li><a href="https://www.linkedin.com/in/jeffrey-de-la-cruz/" target="_blank" rel="noreferrer noopener">LinkedIn<span class="ext" aria-hidden="true">↗</span></a></li>
+        <li><a href="mailto:jeffreydelacruzbarrera@gmail.com">Email</a></li>
+      </ul>
+    </section>
+
+    <!-- ================= WORK ================= -->
+    <section class="section" id="work" aria-labelledby="work-heading">
+      <div class="section-label">
+        <span class="label-index" aria-hidden="true">01</span>
+        <h2 class="label-text" id="work-heading">Selected work</h2>
+      </div>
+
+      <div class="section-body">
+
+        <!-- ---------- PROJECT 1 : deep ---------- -->
+        <article class="project project-lead reveal">
+          <header class="project-head">
+            <h3 class="project-title">Jordan's Ticket Triage Assistant</h3>
+            <p class="project-meta">Python · Streamlit · Claude API <span class="dot" aria-hidden="true">·</span> 2026</p>
+          </header>
+
+          <p class="project-summary">
+            An automated triage layer that sorts a support queue by urgency, with a
+            plain-language reason attached, before an agent opens it. The system
+            recommends. The agent always has the final say.
           </p>
-        </div>
 
-        <nav class="side-nav" aria-label="In-page">
-          <ul>
-            <li>
-              <a href="#about" class="nav-link" data-nav="about">
-                <span class="nav-line" aria-hidden="true"></span>
-                <span class="nav-index" aria-hidden="true">01</span>
-                <span class="nav-text">About</span>
-              </a>
-            </li>
-            <li>
-              <a href="#experience" class="nav-link" data-nav="experience">
-                <span class="nav-line" aria-hidden="true"></span>
-                <span class="nav-index" aria-hidden="true">02</span>
-                <span class="nav-text">Experience</span>
-              </a>
-            </li>
-            <li>
-              <a href="#projects" class="nav-link" data-nav="projects">
-                <span class="nav-line" aria-hidden="true"></span>
-                <span class="nav-index" aria-hidden="true">03</span>
-                <span class="nav-text">Projects</span>
-              </a>
-            </li>
+          <div class="detail">
+            <h4 class="detail-heading">The problem</h4>
+            <p>
+              Jordan is a support rep handling 200–300 tickets a week. Every morning
+              started with an unsorted queue and roughly 90 minutes of reading and
+              re-ordering by hand. One week that cost a customer four hours on an
+              unopened payment failure.
+            </p>
+            <p>
+              I started with five whys instead of code. The chain ended somewhere
+              unexpected: the company already had years of labeled support data, it
+              just wasn't being used to prioritize anything. The root cause wasn't
+              Jordan working too slowly. It was a missing triage layer. That reframed
+              the whole project: don't build a faster agent, build the sorted queue
+              the agent should have been opening all along.
+            </p>
+          </div>
+
+          <div class="detail">
+            <h4 class="detail-heading">What the agent sees</h4>
+            <div class="queue" role="img" aria-label="Sorted queue: Critical, score 92, payment failed on renewal with account locked out, SLA breached. High, score 71, production API returning 500s for all users, 3.1 hours left. Medium, score 48, how do I export my report to PDF, 18 hours left. Low, score 29, feature request for dark mode, 60 hours left.">
+              <div class="queue-row" data-sev="critical">
+                <span class="sev"><i class="sev-dot" aria-hidden="true"></i>Critical</span>
+                <span class="score">92</span>
+                <span class="subject">Payment failed on renewal, account locked out</span>
+                <span class="sla">breached</span>
+              </div>
+              <div class="queue-row" data-sev="high">
+                <span class="sev"><i class="sev-dot" aria-hidden="true"></i>High</span>
+                <span class="score">71</span>
+                <span class="subject">Production API returning 500s for all users</span>
+                <span class="sla">3.1h left</span>
+              </div>
+              <div class="queue-row" data-sev="medium">
+                <span class="sev"><i class="sev-dot" aria-hidden="true"></i>Medium</span>
+                <span class="score">48</span>
+                <span class="subject">How do I export my report to PDF?</span>
+                <span class="sla">18h left</span>
+              </div>
+              <div class="queue-row" data-sev="low">
+                <span class="sev"><i class="sev-dot" aria-hidden="true"></i>Low</span>
+                <span class="score">29</span>
+                <span class="subject">Feature request: dark mode would be nice</span>
+                <span class="sla">60h left</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="detail">
+            <h4 class="detail-heading">How it's built</h4>
+            <ol class="pipeline">
+              <li>
+                <strong>Deterministic rule scorer.</strong> Every ticket gets a 0–100
+                urgency score and a category. No model in this path, so it's cheap and
+                repeatable across 300 tickets.
+              </li>
+              <li>
+                <strong>Critical-class safety net.</strong> Any ticket carrying a
+                hard-priority signal (outage, breach, payment failed, locked out) is
+                force-escalated to at least High regardless of its score. This is the
+                single most important rule in the system, and it's covered by
+                parametrized tests.
+              </li>
+              <li>
+                <strong>Claude rationale layer.</strong> Explains the score in a bullet
+                or two and suggests a queue. It explains the decision. It never re-makes it.
+              </li>
+              <li>
+                <strong>Streamlit queue UI.</strong> Pre-sorted queue, per-ticket detail,
+                and a confirm/adjust control that logs every agent override.
+              </li>
+            </ol>
+            <p class="aside">
+              The scorer and the model are deliberately separate. If the API key is
+              missing or a call fails, the batch job falls back to a deterministic
+              rationale and the queue still sorts correctly. No single point of failure.
+            </p>
+          </div>
+
+          <div class="detail">
+            <h4 class="detail-heading">Results</h4>
+            <p class="detail-note">
+              Measured against the dataset's own ground-truth labels. No relabelling.
+            </p>
+            <table class="metrics">
+              <caption class="visually-hidden">Evaluation metrics for the rule-based scorer</caption>
+              <tbody>
+                <tr class="metric-lead">
+                  <th scope="row">Top-severity recall <span class="metric-note">the number that matters</span></th>
+                  <td>49.2%</td>
+                </tr>
+                <tr>
+                  <th scope="row">Tickets evaluated</th>
+                  <td>11,923</td>
+                </tr>
+                <tr>
+                  <th scope="row">Overall accuracy (3-way)</th>
+                  <td>41.6%</td>
+                </tr>
+                <tr>
+                  <th scope="row">Precision — high / medium</th>
+                  <td>46.8% / 44.6%</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="detail detail-honest">
+            <h4 class="detail-heading">Reading those numbers honestly</h4>
+            <p>
+              41.6% overall accuracy is not a good-looking number, and I'm not going to
+              dress it up. Priority in this generic dataset is only weakly expressed
+              through keywords, so a keyword scorer has a real ceiling. Most tickets
+              labeled <em>high</em> contain no urgency vocabulary at all.
+            </p>
+            <p>
+              So the calibration optimizes recall on the top-severity class over overall
+              accuracy, and trades <em>high</em> precision down on purpose. A missed
+              critical ticket is Jordan's four-hour incident. A false alarm costs a
+              glance. Those are not symmetric, and the metric shouldn't pretend they are.
+            </p>
+            <p>
+              Where the system is provably strong is the safety net: every ticket
+              containing a hard-priority signal is guaranteed to escalate, and that
+              guarantee is enforced by tests rather than by hope.
+            </p>
+          </div>
+
+          <ul class="stack" aria-label="Technologies">
+            <li>Python</li><li>pandas</li><li>Streamlit</li><li>Claude API</li><li>pytest</li>
           </ul>
-        </nav>
 
-        <!-- Replace the GitHub / email placeholders below with real links -->
-        <ul class="social-list" aria-label="Elsewhere">
+          <p class="project-cta">
+            <a class="link-primary" href="https://github.com/Jeffreys-World" target="_blank" rel="noreferrer noopener">
+              Source, case study, and full evaluation<span class="ext" aria-hidden="true">↗</span>
+            </a>
+          </p>
+        </article>
+
+        <!-- ---------- PROJECT 2 : compact ---------- -->
+        <article class="project reveal">
+          <header class="project-head">
+            <h3 class="project-title">Unit Converter</h3>
+            <p class="project-meta">Vanilla JS · Single file <span class="dot" aria-hidden="true">·</span> 2026</p>
+          </header>
+
+          <p class="project-summary">
+            A kilometer/mile converter that answers the question behind the question.
+            Converting 42 km to 26.1 mi is arithmetic; knowing that's a marathon is the
+            part a person actually wanted. It adds real-world scale context to every result.
+          </p>
+
+          <p>
+            Built as a single self-contained file with no dependencies and no build step.
+            The constraint was the interesting part: every kilobyte had to earn its place,
+            which is a useful way to find out how much of a typical front end is habit.
+          </p>
+
+          <ul class="stack" aria-label="Technologies">
+            <li>HTML</li><li>CSS</li><li>Vanilla JS</li><li>Zero dependencies</li>
+          </ul>
+        </article>
+
+      </div>
+    </section>
+
+    <!-- ================= APPROACH ================= -->
+    <section class="section" id="approach" aria-labelledby="approach-heading">
+      <div class="section-label">
+        <span class="label-index" aria-hidden="true">02</span>
+        <h2 class="label-text" id="approach-heading">Approach</h2>
+      </div>
+
+      <div class="section-body">
+        <div class="principles">
+          <article class="principle reveal">
+            <h3>Find the real problem before writing code.</h3>
+            <p>
+              The triage project started as "help Jordan work faster" and ended as
+              "the queue was never sorted." Those need completely different software.
+              Five whys costs an afternoon and saves a rewrite.
+            </p>
+          </article>
+
+          <article class="principle reveal">
+            <h3>Put the guarantee in a test, not in a promise.</h3>
+            <p>
+              The safety net is the most important rule in the triage system, so it's
+              the most heavily tested thing in the repo. If a behavior matters, it
+              should be impossible to break it quietly.
+            </p>
+          </article>
+
+          <article class="principle reveal">
+            <h3>Report the number that's true, not the one that flatters.</h3>
+            <p>
+              I could have reported top-severity recall alone and looked better. The
+              evaluation publishes overall accuracy, the full confusion matrix, and a
+              limitations section, because a metric you can't argue with is worth more
+              than one you can.
+            </p>
+          </article>
+
+          <article class="principle reveal">
+            <h3>Let the model explain, not decide.</h3>
+            <p>
+              Scoring is deterministic and testable. The model writes the rationale.
+              Keeping that boundary sharp is why the system still works correctly when
+              the API is down.
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= CONTACT ================= -->
+    <section class="section section-contact" id="contact" aria-labelledby="contact-heading">
+      <div class="section-label">
+        <span class="label-index" aria-hidden="true">03</span>
+        <h2 class="label-text" id="contact-heading">Contact</h2>
+      </div>
+
+      <div class="section-body">
+        <p class="contact-line reveal">
+          If you have a queue nobody has sorted yet, I'd like to hear about it.
+        </p>
+
+        <ul class="contact-links reveal">
+          <li>
+            <a href="mailto:jeffreydelacruzbarrera@gmail.com">
+              <span class="contact-key">Email</span>
+              <span class="contact-val">jeffreydelacruzbarrera@gmail.com</span>
+            </a>
+          </li>
+          <li>
+            <a href="https://github.com/Jeffreys-World" target="_blank" rel="noreferrer noopener">
+              <span class="contact-key">GitHub</span>
+              <span class="contact-val">github.com/Jeffreys-World<span class="ext" aria-hidden="true">↗</span></span>
+            </a>
+          </li>
           <li>
             <a href="https://www.linkedin.com/in/jeffrey-de-la-cruz/" target="_blank" rel="noreferrer noopener">
-              <span aria-hidden="true">IN</span>
-              <span class="visually-hidden">LinkedIn (opens in a new tab)</span>
-            </a>
-          </li>
-          <li>
-            <a href="https://github.com/" target="_blank" rel="noreferrer noopener">
-              <span aria-hidden="true">GH</span>
-              <span class="visually-hidden">GitHub (opens in a new tab)</span>
-            </a>
-          </li>
-          <li>
-            <a href="mailto:hello@jeffreydelacruz.dev">
-              <span aria-hidden="true">@</span>
-              <span class="visually-hidden">Email Jeffrey</span>
+              <span class="contact-key">LinkedIn</span>
+              <span class="contact-val">in/jeffrey-de-la-cruz<span class="ext" aria-hidden="true">↗</span></span>
             </a>
           </li>
         </ul>
-
       </div>
-    </header>
+    </section>
 
-    <!-- ============ MAIN CONTENT ============ -->
-    <main id="main-content" class="content">
+  </main>
 
-      <section id="about" class="section" aria-labelledby="about-heading">
-        <h2 id="about-heading" class="section-heading">
-          <span class="heading-index" aria-hidden="true">01</span>
-          <span>About</span>
-          <span class="heading-line" aria-hidden="true"></span>
-        </h2>
-
-        <div class="prose">
-          <p>
-            I'm Jeffrey, a Frontend Developer who's genuinely happiest deep in the details of
-            an interface — the kind of person who will spend an extra hour making sure a hover
-            state feels right. I build pixel-perfect, fully responsive UI with semantic HTML,
-            modern CSS (Grid, Flexbox, custom properties), and clean vanilla JavaScript, and I
-            treat accessibility as a baseline requirement, not a checklist item bolted on at the end.
-          </p>
-          <p>
-            Most of that work has happened inside cross-functional product teams, sitting
-            alongside designers, PMs, and backend engineers to turn wireframes into interfaces
-            that actually hold up in production. I like the parts of the job that don't have a
-            clean textbook answer — untangling a gnarly architecture decision, hitting a
-            performance wall under real traffic, or shipping a feature without breaking three
-            others — and I've built a track record of finding the version of the solution that
-            survives contact with real users.
-          </p>
-          <p>
-            Away from the keyboard, I'm usually at the gym working through a program, or a few
-            chapters into whatever I'm learning next — I've never quite been able to switch off
-            the habit of getting a little better at something every day. Both of those habits
-            sharpen the same three things I try to bring to every team: leadership, teamwork, and
-            clear communication, because the best code in the world doesn't matter much if the
-            people building it can't work well together.
-          </p>
-        </div>
-      </section>
-
-      <section id="experience" class="section" aria-labelledby="experience-heading">
-        <h2 id="experience-heading" class="section-heading">
-          <span class="heading-index" aria-hidden="true">02</span>
-          <span>Experience</span>
-          <span class="heading-line" aria-hidden="true"></span>
-        </h2>
-
-        <div class="timeline">
-          <article class="experience-item">
-            <div class="experience-head">
-              <h3 class="role">Senior Frontend Engineer <span class="at">@ Tech Innovations Corp</span></h3>
-              <p class="dates">2024 — Present</p>
-            </div>
-            <p class="desc">
-              Leads frontend architecture for high-traffic client portals. Collaborates closely
-              with product design to build a reusable global UI component library based on
-              strict web accessibility patterns.
-            </p>
-            <ul class="tags">
-              <li>JavaScript</li>
-              <li>HTML5</li>
-              <li>CSS3</li>
-              <li>Accessibility (WCAG)</li>
-            </ul>
-          </article>
-
-          <article class="experience-item">
-            <div class="experience-head">
-              <h3 class="role">Web Applications Developer <span class="at">@ PixelCraft Digital</span></h3>
-              <p class="dates">2021 — 2024</p>
-            </div>
-            <p class="desc">
-              Engineered and optimized responsive web applications for enterprise clients.
-              Refactored legacy codebase architectures into modular vanilla JavaScript engines,
-              improving overall page speed by 35%.
-            </p>
-            <ul class="tags">
-              <li>Vanilla JS</li>
-              <li>SCSS</li>
-              <li>Responsive Design</li>
-              <li>Git</li>
-            </ul>
-          </article>
-        </div>
-      </section>
-
-      <section id="projects" class="section" aria-labelledby="projects-heading">
-        <h2 id="projects-heading" class="section-heading">
-          <span class="heading-index" aria-hidden="true">03</span>
-          <span>Projects</span>
-          <span class="heading-line" aria-hidden="true"></span>
-        </h2>
-
-        <!--
-          Cards are static for now (no destination URLs were provided).
-          When real project links exist, wrap each .project-card's contents
-          in an <a href="..."> so it's reachable by keyboard/screen reader too.
-        -->
-        <div class="projects-grid">
-          <article class="project-card">
-            <div class="project-top">
-              <h3 class="project-title">
-                Enterprise Performance Dashboard Framework
-                <svg class="project-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <line x1="7" y1="17" x2="17" y2="7"></line>
-                  <polyline points="7 7 17 7 17 17"></polyline>
-                </svg>
-              </h3>
-            </div>
-            <p class="project-desc">
-              A zero-dependency administrative dashboard layout engineered entirely in vanilla
-              JavaScript and CSS Grid. Features high-performance client-side state handling and
-              custom data visualizations using native canvas APIs.
-            </p>
-            <ul class="tags">
-              <li>HTML5</li>
-              <li>CSS Grid</li>
-              <li>JavaScript Engine</li>
-            </ul>
-          </article>
-
-          <article class="project-card">
-            <div class="project-top">
-              <h3 class="project-title">
-                Accessible Media Streamer UI
-                <svg class="project-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <line x1="7" y1="17" x2="17" y2="7"></line>
-                  <polyline points="7 7 17 7 17 17"></polyline>
-                </svg>
-              </h3>
-            </div>
-            <p class="project-desc">
-              A meticulously structured media presentation interface built entirely to comply
-              with WCAG accessibility guidelines. Features deep full-keyboard tab mechanics,
-              screen-reader ARIA definitions, and custom audio/video inputs.
-            </p>
-            <ul class="tags">
-              <li>Semantic HTML</li>
-              <li>Custom CSS UI</li>
-              <li>Media API</li>
-            </ul>
-          </article>
-        </div>
-      </section>
-
-      <footer class="site-footer">
-        <p>Designed &amp; built by Jeffrey De La Cruz — semantic HTML, modern CSS, vanilla JavaScript.</p>
-      </footer>
-
-    </main>
-  </div>
+  <footer class="site-footer">
+    <p>Built by Jeffrey De La Cruz. Semantic HTML, hand-written CSS, no framework, no build step.</p>
+    <p class="colophon">Set in Fraunces, Instrument Sans, and JetBrains Mono.</p>
+  </footer>
 
   <script src="script.js"></script>
 </body>
