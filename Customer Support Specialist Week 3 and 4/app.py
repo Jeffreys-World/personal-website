@@ -176,6 +176,7 @@ APP_CSS = """
     padding: 2.2rem 1.5rem; text-align: center; color: var(--tri-muted);
     font-size: 1rem; line-height: 1.6;
   }
+  .tri-empty-hint { display: inline-block; margin-top: 0.35rem; font-size: 0.92rem; opacity: 0.85; }
 
   /* Buttons and inputs: bigger tap targets, smooth state changes. */
   .stButton button {
@@ -385,20 +386,32 @@ def render_confirm_adjust(ticket: Dict) -> None:
     cat = ticket["category"]
     col1, col2 = st.columns([1, 2])
     with col1:
-        if st.button("✅ Confirm", use_container_width=True):
+        if st.button("✅ Confirm", use_container_width=True, key=f"confirm_{ticket['id']}"):
             log_override(ticket["id"], cat, cat, "confirm")
-            st.session_state["last_action"] = f"Confirmed {ticket['id']} as {cat}."
+            st.session_state["last_action"] = {
+                "ticket": ticket["id"],
+                "msg": f"Confirmed {ticket['id']} as {cat}.",
+            }
     with col2:
         new_cat = st.selectbox(
             "Override category", CATEGORY_ORDER,
             index=CATEGORY_ORDER.index(cat), key=f"ovr_{ticket['id']}",
         )
-        if st.button("✏️ Save override", use_container_width=True, disabled=(new_cat == cat)):
+        if st.button("✏️ Save override", use_container_width=True,
+                     disabled=(new_cat == cat), key=f"save_{ticket['id']}"):
             log_override(ticket["id"], cat, new_cat, "override")
-            st.session_state["last_action"] = f"Overrode {ticket['id']}: {cat} → {new_cat}."
+            st.session_state["last_action"] = {
+                "ticket": ticket["id"],
+                "msg": f"Overrode {ticket['id']}: {cat} → {new_cat}.",
+            }
 
-    if st.session_state.get("last_action"):
-        st.success(st.session_state["last_action"])
+    # The confirmation is scoped to the ticket it belongs to. Keying this on a
+    # bare string meant the banner followed the agent to the NEXT ticket: after
+    # confirming T00005, opening T00051 still showed "Confirmed T00005", which
+    # reads as "you already handled this one" on a ticket nobody has touched.
+    last = st.session_state.get("last_action")
+    if isinstance(last, dict) and last.get("ticket") == ticket["id"]:
+        st.success(last["msg"])
 
 
 @st.fragment
@@ -412,7 +425,19 @@ def render_workspace(filtered: List[Dict]) -> None:
     left, right = st.columns([1.25, 1], gap="large")
     with left:
         st.subheader("Queue")
-        selected_idx = render_queue(filtered)
+        if not filtered:
+            # An empty DataFrame still renders a 560px grid skeleton with no
+            # columns and a tiny grey "empty" label, which reads as a broken
+            # table rather than "your filters matched nothing".
+            st.markdown(
+                '<div class="tri-empty">No tickets match these filters.<br>'
+                '<span class="tri-empty-hint">Clear the search box, or re-add a'
+                ' priority in the sidebar.</span></div>',
+                unsafe_allow_html=True,
+            )
+            selected_idx = None
+        else:
+            selected_idx = render_queue(filtered)
     with right:
         st.subheader("Ticket detail")
         if selected_idx is not None and selected_idx < len(filtered):
