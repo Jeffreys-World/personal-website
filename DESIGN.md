@@ -121,14 +121,18 @@ Lifted directly from the ticket-triage product's own 🔴🟠🟡🟢 scale. The
 
 ## Content Integrity Rule
 This site states only what is verifiable. Every metric on the page traces to
-`Customer Support Specialist Week 3 and 4/results/evaluation.md`. Employment history that
-does not exist is omitted rather than invented. If a fact is unknown, it is left as a
-marked placeholder in the HTML, never filled with plausible fiction.
+`results/evaluation.md` in the project's own repo:
+<https://github.com/Jeffreys-World/Customer-Support-Specialist-Project>. That file used to be
+vendored into this repo; it is cited by URL now so a metric on this page can never be verified
+against a stale local copy. Employment history that does not exist is omitted rather than
+invented. If a fact is unknown, it is left as a marked placeholder in the HTML, never filled
+with plausible fiction.
 
 ## Decisions Log
 | Date | Decision | Rationale |
 |------|----------|-----------|
 | 2026-07-29 | Initial design system created | `/design-consultation`, informed by WebSearch on 2026 hiring-manager expectations plus browse screenshots of brittanychiang.com and leerob.com |
+| 2026-07-30 | Customer Support project removed from this repo; cited by URL instead | The vendored copy had drifted a full architecture behind the project's own repo, so metrics on this page risked being verified against stale files. One project, one repo. |
 | 2026-07-29 | Abandoned the Brittany Chiang v4 clone structure | The site was a near-exact copy (fixed sidebar, navy/mint, numbered nav, tag pills). Structurally wrong for two deep projects, and instantly recognizable to recruiters |
 | 2026-07-29 | Removed fabricated experience and projects | Two invented employers and two invented projects were listed while two real projects sat unlinked. Fabrication is the single biggest risk on a portfolio |
 | 2026-07-29 | Severity ramp adopted as the semantic palette | The triage product's own 🔴🟠🟡🟢 scale, making the color system an expression of the work rather than decoration |

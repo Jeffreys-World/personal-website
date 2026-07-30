@@ -1,3 +1,26 @@
+# Repository Scope
+
+**This repo is the personal website only.** It holds `index.html`, `script.js`, `style.css`,
+`DESIGN.md`, and the Week 2 technical assessment. Nothing else.
+
+**The Customer Support Specialist project does not live here.** It has its own repo:
+
+    https://github.com/Jeffreys-World/Customer-Support-Specialist-Project
+
+A stale copy of that project was checked into this repo as
+`Customer Support Specialist Week 3 and 4/` and removed on 2026-07-30. It had drifted a full
+architecture behind its own repo — no `ui/` package, no `prediction_model.py` — and work done
+in each copy was invisible to the other. That is the failure this separation exists to prevent.
+
+Rules:
+
+- Never re-add project source, data, or notebooks to this repo. If the website needs to cite a
+  project result, link to the project repo by URL — do not vendor the file.
+- Work on the project in a clone of its own repo, as a sibling directory, never nested inside
+  this one. A repo inside a repo is what caused the drift.
+- If asked to change "the customer support project" while this repo is the working directory,
+  stop and say it belongs in the other repo. Do not create a local copy to work around it.
+
 # gstack
 
 Use the `/browse` skill from gstack for all web browsing. Never use `mcp__claude-in-chrome__` tools.

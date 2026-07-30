@@ -1,2 +1,7 @@
 .DS_Store
 .gstack/
+
+# The Customer Support Specialist project has its own repo and must never be
+# vendored back into this one — see the Repository Scope section of CLAUDE.md.
+# https://github.com/Jeffreys-World/Customer-Support-Specialist-Project
+Customer Support Specialist Week 3 and 4/
